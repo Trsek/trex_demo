@@ -40,13 +40,32 @@
 Adafruit_TFTLCD tft(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 
+static int mapa[][3] = {
+  { 100, 20, 64 },  
+  { 500, 40, 72 },  
+  { 700, 10, 80 },  
+  { 450, 50, 70 },  
+  { 600, 50, 70 },  
+  { 250, 50, 70 },  
+  { 450, 50, 70 },  
+  {   0, 20, 64 },  
+  {-300, 30, 56 },  
+  {-600, 50, 64 },  
+  {   0, 30, 56 },  
+};
+
 int cesta_h1;
 int cesta_h2;
 int cesta_d1;
 int cesta_d2;
 
-int uhol=0;
-int rychl = 50;
+int imapa = 0;
+int krok = 0;
+
+float uhol = 0;
+float uhol_krok = 0;
+int rychl = 64;
+int rychl_old = 0;
 int step = 10;
 
 void setup(void) 
@@ -77,11 +96,10 @@ void MainKresli(void)
   tft.setCursor(2, 230);
   tft.print(F("Software by Zdeno Sekerak (c)2018, v0.1"));
 
-  tft.setTextSize(2);
-  tft.setTextColor(YELLOW);
-  tft.setCursor(9, 3);
-  tft.print(F("Speed:     km/h"));
-
+  uhol = mapa[0][0];
+  krok = mapa[0][1];
+  uhol_krok = (mapa[1][0] - uhol)/krok; 
+  
   KresliCesta(cesta_d1, cesta_d2, cesta_h1, cesta_h2, uhol, WHITE);
   KresliRychl(rychl);
 }
@@ -89,32 +107,32 @@ void MainKresli(void)
 
 void KresliRychl(int rychl)
 {
-  tft.fillRect(93, 2, 3 * FONT_WIDTH, FONT_HEIGHT, BLACK);  
-  tft.setTextColor(YELLOW);
-  tft.setCursor(93, 3);
-  tft.print(rychl);
+  int x;
+  for(x=min(rychl,rychl_old); x<max(rychl,rychl_old); x=x+8)
+  {
+    tft.fillRect(x, 0, 7, 8, (x<rychl)? YELLOW: BLACK);  
+  }
+  rychl_old = rychl;
 }
 // -----------------------------------------------------------------------------
 
 void KresliTo(int stred, int zatoc, int vzork, int col)
 {
-  int y;
-  float z, x,zat;
+  int x, y;
+  int z, zat;
 
    x = 0;
    z = 0;
-   zat = 1.0*zatoc/240;
-   zatoc = abs(zatoc);
+   zat = ((int)32*zatoc)/240;
 
-   for(int y=220; y>20; y--)
+   for(y=220; y>20; y--)
    {
-      //if(z < zatoc) 
       z += zat;
-      x += z/240;
+      x += z/256;
 
       if(((y/vzork) % 2)
       || (vzork == 1)) {
-         tft.drawPixel(stred + x, y, col);
+         tft.drawPixel(stred + x/32, y, col);
       }
    }
 }
@@ -128,11 +146,12 @@ void KresliCesta(int x1, int x2, int y1, int y2, int uhol, int color)
 }
 // -----------------------------------------------------------------------------
 
-// the loop function runs over and over again forever
+// the loop function - interactive with touch
+/*
 void loop()
 {
    TSPoint p = ts.getPoint();
-   
+
    if( p.z > MIN_TOUCH )
    {
       pinMode(XM, OUTPUT);
@@ -148,10 +167,34 @@ void loop()
       if(( p.y < 100 ) && ( p.x > 80 ) && ( p.x < 160 ) && ( uhol <  680 )) uhol=uhol+step;
 
       // plyn-brzda
-      if(( p.x <  80 ) && ( p.y > 100 ) && ( p.y < 200 ) && ( rychl < 300 )) rychl=rychl+5;
-      if(( p.x > 160 ) && ( p.y > 100 ) && ( p.y < 200 ) && ( rychl >=  5 )) rychl=rychl-5;
+      if(( p.x <  80 ) && ( p.y > 100 ) && ( p.y < 200 ) && ( rychl < 248 )) rychl=rychl+8;
+      if(( p.x > 160 ) && ( p.y > 100 ) && ( p.y < 200 ) && ( rychl >=  8 )) rychl=rychl-8;
 
       KresliCesta(cesta_d1, cesta_d2, cesta_h1, cesta_h2, uhol, WHITE);
       KresliRychl(rychl);
    }
+}
+*/
+
+void loop()
+{
+    KresliCesta(cesta_d1, cesta_d2, cesta_h1, cesta_h2, uhol, BLACK);
+    
+    // posun uhol
+    uhol += uhol_krok;
+    // tento krok je dokonceny
+    // daj dalsi
+    if( krok-- == 0 )
+    {
+      imapa++;
+      if((imapa+1) >= sizeof(mapa)/sizeof(mapa[0]))
+          imapa = 0;
+      uhol = mapa[imapa][0];
+      krok = mapa[imapa][1]; 
+      uhol_krok = (mapa[imapa+1][0] - uhol)/krok; 
+    }
+
+    KresliCesta(cesta_d1, cesta_d2, cesta_h1, cesta_h2, uhol, WHITE);
+    KresliRychl(mapa[imapa][2]);
+    delay(100);
 }
